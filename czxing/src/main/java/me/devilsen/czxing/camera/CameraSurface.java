@@ -23,6 +23,7 @@ import me.devilsen.czxing.util.BarCodeUtil;
 public class CameraSurface extends SurfaceView implements SensorController.CameraFocusListener,
         SurfaceHolder.Callback {
 
+    private static final long ONE_SECOND = 1000;
     private Camera mCamera;
 
     private float mOldDist = 1f;
@@ -30,8 +31,10 @@ public class CameraSurface extends SurfaceView implements SensorController.Camer
     private boolean mIsTouchFocusing;
     private boolean mSurfaceCreated;
     private boolean mFlashLightIsOpen;
+    private boolean mZoomOutFlag;
 
     private Point focusCenter;
+    private long mLastFrozenTime;
     private long mLastTouchTime;
     private SensorController mSensorController;
     private CameraConfigurationManager mCameraConfigurationManager;
@@ -213,7 +216,13 @@ public class CameraSurface extends SurfaceView implements SensorController.Camer
      */
     @Override
     public void onFrozen() {
-        BarCodeUtil.d("mCamera is frozen, start focus");
+        long now = System.currentTimeMillis();
+        if (now - mLastFrozenTime < ONE_SECOND) {
+            return;
+        }
+        mLastFrozenTime = now;
+
+        BarCodeUtil.d("mCamera is frozen, start focus x = " + focusCenter.x + " y = " + focusCenter.y);
         handleFocus(focusCenter.x, focusCenter.y);
     }
 
@@ -233,22 +242,27 @@ public class CameraSurface extends SurfaceView implements SensorController.Camer
      * @param scale    放大缩小的数值
      */
     void handleZoom(boolean isZoomIn, int scale) {
-        Camera.Parameters params = mCamera.getParameters();
-        if (params.isZoomSupported()) {
-            int zoom = params.getZoom();
-            if (isZoomIn && zoom < params.getMaxZoom()) {
-                BarCodeUtil.d("放大");
-                zoom += scale;
-            } else if (!isZoomIn && zoom > 0) {
-                BarCodeUtil.d("缩小");
-                zoom -= scale;
+        try {
+            Camera.Parameters params = mCamera.getParameters();
+            if (params.isZoomSupported()) {
+                int zoom = params.getZoom();
+                if (isZoomIn && zoom < params.getMaxZoom()) {
+                    BarCodeUtil.d("放大");
+                    zoom += scale;
+                } else if (!isZoomIn && zoom > 0) {
+                    BarCodeUtil.d("缩小");
+                    mZoomOutFlag = true;
+                    zoom -= scale;
+                } else {
+                    BarCodeUtil.d("既不放大也不缩小");
+                }
+                params.setZoom(zoom);
+                mCamera.setParameters(params);
             } else {
-                BarCodeUtil.d("既不放大也不缩小");
+                BarCodeUtil.d("不支持缩放");
             }
-            params.setZoom(zoom);
-            mCamera.setParameters(params);
-        } else {
-            BarCodeUtil.d("不支持缩放");
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -331,6 +345,15 @@ public class CameraSurface extends SurfaceView implements SensorController.Camer
 
     public boolean isPreviewing() {
         return mCamera != null && mPreviewing && mSurfaceCreated;
+    }
+
+    /**
+     * 是否有过缩小操作
+     *
+     * @return true：缩小过
+     */
+    public boolean hadZoomOut() {
+        return mZoomOutFlag;
     }
 
     private void handleFocus(float x, float y) {

@@ -1,7 +1,8 @@
 package me.devilsen.czxing.thread;
 
+import me.devilsen.czxing.code.CodeResult;
 import me.devilsen.czxing.util.BarCodeUtil;
-import me.devilsen.czxing.BarcodeReader;
+import me.devilsen.czxing.code.BarcodeReader;
 import me.devilsen.czxing.processor.BarcodeProcessor;
 
 /**
@@ -27,30 +28,26 @@ public class ProcessRunnable implements Runnable {
     @Override
     public void run() {
         try {
-//            SaveImageUtil.saveData(frameData.data,
-//                    frameData.left,
-//                    frameData.top,
-//                    frameData.width,
-//                    frameData.height,
-//                    frameData.rowWidth);
-
-            long start = System.currentTimeMillis();
-            BarcodeReader.Result result = mBarcodeProcessor.processBytes(frameData.data,
-                    frameData.left,
-                    frameData.top,
-                    frameData.width,
-                    frameData.height,
-                    frameData.rowWidth);
-
-            BarCodeUtil.d("reader time: " + (System.currentTimeMillis() - start));
-
-
-            if (frameData.left == 0 && frameData.top == 0 && result == null) {
+            if (frameData.left != 0 && frameData.top != 0) {
                 boolean isDark = mBarcodeProcessor.analysisBrightness(frameData.data, frameData.width, frameData.height);
                 if (mDecodeCallback != null) {
                     mDecodeCallback.onDarkBrightness(isDark);
                 }
+                if (isDark){
+                    return;
+                }
             }
+
+            long start = System.currentTimeMillis();
+            CodeResult result = mBarcodeProcessor.processBytes(frameData.data,
+                    frameData.left,
+                    frameData.top,
+                    frameData.width,
+                    frameData.height,
+                    frameData.rowWidth,
+                    frameData.rowHeight);
+
+            BarCodeUtil.d("reader time: " + (System.currentTimeMillis() - start));
 
             if (result != null && mDecodeCallback != null) {
                 mDecodeCallback.onDecodeComplete(result);

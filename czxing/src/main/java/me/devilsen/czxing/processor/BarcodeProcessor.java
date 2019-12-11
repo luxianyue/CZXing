@@ -2,8 +2,9 @@ package me.devilsen.czxing.processor;
 
 import android.graphics.Bitmap;
 
-import me.devilsen.czxing.BarcodeFormat;
-import me.devilsen.czxing.BarcodeReader;
+import me.devilsen.czxing.code.BarcodeFormat;
+import me.devilsen.czxing.code.BarcodeReader;
+import me.devilsen.czxing.code.CodeResult;
 
 /**
  * desc : 二维码处理模块
@@ -11,12 +12,14 @@ import me.devilsen.czxing.BarcodeReader;
  *
  * @author : dongSen
  */
-public class BarcodeProcessor extends Processor {
+public class BarcodeProcessor {
 
     private BarcodeReader reader;
+    private boolean cancel;
 
     public BarcodeProcessor() {
-        reader = new BarcodeReader(
+        reader = BarcodeReader.getInstance();
+        reader.setBarcodeFormat(
                 BarcodeFormat.QR_CODE,
 //                BarcodeFormat.AZTEC,
                 BarcodeFormat.CODABAR,
@@ -42,19 +45,19 @@ public class BarcodeProcessor extends Processor {
             return null;
         }
 
-        BarcodeReader.Result result = reader.read(bitmap, bitmap.getWidth(), bitmap.getHeight());
+        CodeResult result = reader.read(bitmap);
         if (result != null) {
             return result.getText();
         }
         return null;
     }
 
-    public synchronized BarcodeReader.Result processBytes(byte[] data, int cropLeft, int cropTop, int cropWidth, int cropHeight, int rowWidth) {
+    public CodeResult processBytes(byte[] data, int cropLeft, int cropTop, int cropWidth, int cropHeight, int rowWidth, int rowHeight) {
         if (cancel) {
             return null;
         }
 
-        BarcodeReader.Result result = reader.read(data, cropLeft, cropTop, cropWidth, cropHeight, rowWidth);
+        CodeResult result = reader.read(data, cropLeft, cropTop, cropWidth, cropHeight, rowWidth, rowHeight);
         if (result != null) {
             return result;
         }
@@ -69,11 +72,19 @@ public class BarcodeProcessor extends Processor {
      * @param imageHeight 图像高度
      * @return 是否过暗
      */
-    public synchronized boolean analysisBrightness(byte[] data, int imageWidth, int imageHeight) {
+    public boolean analysisBrightness(byte[] data, int imageWidth, int imageHeight) {
         if (cancel) {
             return false;
         }
-        return reader.analysisBrightness(data, imageWidth, imageHeight);
+        return false;
+    }
+
+    public void setReadCodeListener(BarcodeReader.ReadCodeListener readCodeListener) {
+        reader.setReadCodeListener(readCodeListener);
+    }
+
+    public void cancel() {
+        cancel = true;
     }
 
 }

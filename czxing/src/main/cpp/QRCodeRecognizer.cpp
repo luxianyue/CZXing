@@ -5,7 +5,6 @@
 #include <opencv2/imgproc/types_c.h>
 #include "QRCodeRecognizer.h"
 #include "opencv2/opencv.hpp"
-#include "JNIUtils.h"
 
 using namespace cv;
 using namespace std;
@@ -45,10 +44,18 @@ void check_center(vector<vector<Point> > c, vector<int> &index) {
     }
 }
 
-void QRCodeRecognizer::processData(int *data, jint w, jint h, Rect *resultRect) {
+void QRCodeRecognizer::processData(const Mat &gray, Rect *resultRect) {
 
-    Mat gray(h, w, CV_8UC4, data);
+//    Mat gray(h, w, CV_8UC4, data);
 //    imwrite("/storage/emulated/0/scan/src.jpg", gray);
+
+//    Mat filter;
+//    bilateralFilter(gray, filter, 15, 150, 15, 4);
+//    imwrite("/storage/emulated/0/scan/filter.jpg", filter);
+
+    int w = gray.cols;
+    int h = gray.rows;
+
     // 进行canny化，变成黑白线条构成的图片
     Mat binary;
     Canny(gray, binary, 100, 255, 3);
@@ -69,7 +76,7 @@ void QRCodeRecognizer::processData(int *data, jint w, jint h, Rect *resultRect) 
         float rect_w = rect.size.width;
         float rect_h = rect.size.height;
         float rate = min(rect_w, rect_h) / max(rect_w, rect_h);
-        if (rate > 0.7 && rect_w < (gray.cols >> 2) && rect_h < (gray.rows >> 2)) {
+        if (rate > 0.65 && rect_w < (gray.cols >> 2) && rect_h < (gray.rows >> 2)) {
             int k = t;
             int c = 0;
             while (hierarchy[k][2] != -1) {

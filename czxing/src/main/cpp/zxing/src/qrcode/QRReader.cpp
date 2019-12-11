@@ -159,8 +159,16 @@ Reader::decode(const BinaryBitmap& image) const
 	}
 	else {
 		DetectorResult detectorResult = Detector::Detect(*binImg, _tryHarder);
-		if (!detectorResult.isValid())
+		if (!detectorResult.isValid()){
+            if (detectorResult.points().size() > 2){
+                Result result(DecodeStatus::PositionFound);
+                points = detectorResult.points();
+                result.setResultPoints(std::move(points));
+                result.setFormat(BarcodeFormat::QR_CODE);
+                return result;
+            }
 			return Result(DecodeStatus::NotFound);
+		}
 
 		decoderResult = Decoder::Decode(detectorResult.bits(), _charset);
 		points = detectorResult.points();
@@ -172,7 +180,7 @@ Reader::decode(const BinaryBitmap& image) const
 
 	// If the code was mirrored: swap the bottom-left and the top-right points.
 	// No need to 'fix' top-left and alignment pattern.
-	if (points.size() >= 3 && decoderResult.extra() && dynamic_cast<DecoderMetadata*>(decoderResult.extra().get())->isMirrored()) {
+	if (points.size() >= 3 && decoderResult.extra() && static_cast<DecoderMetadata*>(decoderResult.extra().get())->isMirrored()) {
 		std::swap(points.at(0), points.at(2));
 	}
 

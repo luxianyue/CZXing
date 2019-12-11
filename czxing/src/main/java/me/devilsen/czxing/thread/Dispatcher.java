@@ -25,7 +25,7 @@ public final class Dispatcher {
 
     public Dispatcher() {
         blockingDeque = new LinkedBlockingDeque<>();
-        executorService = new ThreadPoolExecutor(2,
+        executorService = new ThreadPoolExecutor(1,
                 2,
                 10,
                 TimeUnit.SECONDS,
@@ -37,8 +37,8 @@ public final class Dispatcher {
         return new ProcessRunnable(this, frameData, callback);
     }
 
-    public ProcessRunnable newRunnable(byte[] data, int left, int top, int width, int height, int rowWidth, Callback callback) {
-        return newRunnable(new FrameData(data, left, top, width, height, rowWidth), callback);
+    public ProcessRunnable newRunnable(byte[] data, int left, int top, int width, int height, int rowWidth, int rowHeight, Callback callback) {
+        return newRunnable(new FrameData(data, left, top, width, height, rowWidth, rowHeight), callback);
     }
 
     synchronized int enqueue(ProcessRunnable runnable) {

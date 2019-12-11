@@ -1,4 +1,13 @@
 apply plugin: 'com.android.application'
+//apply plugin: 'bugly'
+//apply from: "../config.gradle"
+
+// 如初次运行，请把此处注释掉
+//bugly {
+//    debug = true
+//    appId = buglyAppId
+//    appKey = buglyAppKey
+//}
 
 android {
     compileSdkVersion rootProject.ext.compileSdkVersion
@@ -30,6 +39,12 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        debug {
+            jniDebuggable true
+            ndk {
+                debuggable = true
+            }
+        }
     }
 
     compileOptions {
@@ -41,8 +56,9 @@ android {
 
 dependencies {
 
-    implementation project(':czxing')
-//    implementation 'me.devilsen:CZXing:0.3'
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.0-beta-3'
+//    implementation project(':czxing')
+    implementation 'me.devilsen:CZXing:0.9.11'
 
     implementation rootProject.ext.appcompat
     testImplementation rootProject.ext.junit
@@ -53,5 +69,8 @@ dependencies {
     // bugly
     implementation 'com.tencent.bugly:crashreport:3.0.0'
     implementation 'com.tencent.bugly:nativecrashreport:3.7.1'
+    // rxJava
+    implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
+    implementation 'io.reactivex.rxjava2:rxjava:2.2.11'
 
 }

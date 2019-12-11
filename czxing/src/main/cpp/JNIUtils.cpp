@@ -21,7 +21,8 @@
 #include <stdexcept>
 #include <vector>
 #include <opencv2/core/types.hpp>
-#include <locale.h>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace {
 
@@ -81,12 +82,11 @@ BinaryBitmapFromJavaBitmap(JNIEnv *env, jobject bitmap, int cropLeft, int cropTo
 }
 
 std::shared_ptr<ZXing::BinaryBitmap>
-BinaryBitmapFromBytes(JNIEnv *env, void *pixels, int cropLeft, int cropTop, int cropWidth,
-                      int cropHeight) {
+BinaryBitmapFromBytesC4(JNIEnv *env, void *pixels, int cropLeft, int cropTop, int cropWidth,
+                        int cropHeight) {
     using namespace ZXing;
-
-//    LOGE("cropLeft %d , cropTop %d  cropWidth %d cropHeight %d", cropLeft, cropTop, cropWidth,
-//         cropHeight);
+    LOGE("cropLeft %d , cropTop %d  cropWidth %d cropHeight %d", cropLeft, cropTop, cropWidth,
+         cropHeight);
 
     std::shared_ptr<GenericLuminanceSource> luminance = std::make_shared<GenericLuminanceSource>(
             cropLeft, cropTop, cropWidth,
@@ -96,40 +96,75 @@ BinaryBitmapFromBytes(JNIEnv *env, void *pixels, int cropLeft, int cropTop, int 
     return std::make_shared<HybridBinarizer>(luminance);
 }
 
-bool AnalysisBrightness(JNIEnv *env, const jbyte *bytes, int width, int height) {
-    // 像素点的总亮度
-    unsigned long pixelLightCount = 0L;
-    // 像素点的总数
-    int pixelCount = width * height;
-    // 采集步长，因为没有必要每个像素点都采集，可以跨一段采集一个，减少计算负担，必须大于等于1。
-    int step = 20;
-    for (int i = 0; i < pixelCount; i += step) {
-        // 如果直接加是不行的，因为 data[i] 记录的是色值并不是数值，byte 的范围是 +127 到 —128，
-        pixelLightCount += bytes[i] & 0xffL;
-    }
-    // 平均亮度
-    long cameraLight = pixelLightCount / (pixelCount / step);
-    bool isDarkEnv = false;
-//    LOGE("平均亮度 %ld", cameraLight);
-    // 判断在时间范围 AMBIENT_BRIGHTNESS_WAIT_SCAN_TIME * lightSize 内是不是亮度过暗
-    if (cameraLight < 60) {
-        isDarkEnv = true;
-    }
+std::shared_ptr<ZXing::BinaryBitmap>
+BinaryBitmapFromBytesC1(void *pixels, int left, int top, int width, int height) {
+    using namespace ZXing;
+    LOGE("cropLeft %d , cropTop %d  cropWidth %d cropHeight %d", left, top, width,
+         height);
 
-    return isDarkEnv;
+    std::shared_ptr<GenericLuminanceSource> luminance = std::make_shared<GenericLuminanceSource>(
+            left, top, width, height,
+            pixels, width * sizeof(unsigned char));
+
+    return std::make_shared<HybridBinarizer>(luminance);
+}
+
+void
+BitmapToMat(JNIEnv *env, jobject bitmap, cv::Mat &mat) {
+    AndroidBitmapInfo bmInfo;
+    AndroidBitmap_getInfo(env, bitmap, &bmInfo);
+    cv::Mat &dst = mat;
+
+    void *pixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap, &pixels) == ANDROID_BITMAP_RESUT_SUCCESS) {
+        AutoUnlockPixels autounlock(env, bitmap);
+
+        if (bmInfo.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
+            LOGE("nBitmapToMat: RGB_8888 -> CV_8UC4");
+            cv::Mat tmp(bmInfo.height, bmInfo.width, CV_8UC4, pixels);
+            tmp.copyTo(dst);
+        } else {
+            // info.format == ANDROID_BITMAP_FORMAT_RGB_565
+            LOGE("nBitmapToMat: RGB_565 -> CV_8UC4");
+            cv::Mat tmp(bmInfo.height, bmInfo.width, CV_8UC4, pixels);
+            tmp.copyTo(dst);
+        }
+    } else {
+        throw std::runtime_error("Failed to read bitmap's data");
+    }
 }
 
 /**
  * string转wstring
  */
-std::wstring StringToWString(const std::string &src) {
-    unsigned len = src.size() * 2;  // 预留字节数
-    setlocale(LC_CTYPE, "");        // 必须调用此函数
-    auto *p = new wchar_t[len];     // 申请一段内存存放转换后的字符串
-    mbstowcs(p, src.c_str(), len);  // 转换
-    std::wstring desc(p);
-    delete[] p;                     // 释放申请的内存
-    return desc;
+std::string UnicodeToANSI(const std::wstring &wstr) {
+    std::string ret;
+    std::mbstate_t state = {};
+    const wchar_t *src = wstr.data();
+    size_t len = std::wcsrtombs(nullptr, &src, 0, &state);
+    if (static_cast<size_t>(-1) != len) {
+        std::unique_ptr<char[]> buff(new char[len + 1]);
+        len = std::wcsrtombs(buff.get(), &src, len, &state);
+        if (static_cast<size_t>(-1) != len) {
+            ret.assign(buff.get(), len);
+        }
+    }
+    return ret;
+}
+
+std::wstring ANSIToUnicode(const std::string &str) {
+    std::wstring ret;
+    std::mbstate_t state = {};
+    const char *src = str.data();
+    size_t len = std::mbsrtowcs(nullptr, &src, 0, &state);
+    if (static_cast<size_t>(-1) != len) {
+        std::unique_ptr<wchar_t[]> buff(new wchar_t[len + 1]);
+        len = std::mbsrtowcs(buff.get(), &src, len, &state);
+        if (static_cast<size_t>(-1) != len) {
+            ret.assign(buff.get(), len);
+        }
+    }
+    return ret;
 }
 
 void ThrowJavaException(JNIEnv *env, const char *message) {
@@ -191,20 +226,3 @@ ToJavaArray(JNIEnv *env, const std::vector<ZXing::ResultPoint> &input) {
     return array;
 }
 
-jintArray
-reactToJavaArray(JNIEnv *env, const cv::Rect &rect) {
-    jintArray array = env->NewIntArray(6);
-
-    cv::Point pointLeftTop = rect.tl();
-    cv::Point pointRightBottom = rect.br();
-    env->SetIntArrayRegion(array, 0, 1, &pointLeftTop.x);
-    env->SetIntArrayRegion(array, 1, 1, &pointLeftTop.y);
-
-    env->SetIntArrayRegion(array, 2, 1, &pointRightBottom.x);
-    env->SetIntArrayRegion(array, 3, 1, &pointLeftTop.y);
-
-    env->SetIntArrayRegion(array, 4, 1, &pointLeftTop.x);
-    env->SetIntArrayRegion(array, 5, 1, &pointRightBottom.y);
-
-    return array;
-}

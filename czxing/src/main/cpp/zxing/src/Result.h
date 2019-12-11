@@ -40,16 +40,23 @@ class Result
 public:
 	explicit Result(DecodeStatus status) : _status(status) {}
 
-	Result(std::wstring&& text, ByteArray&& rawBytes, std::vector<ResultPoint>&& resultPoints, BarcodeFormat format);
+	Result(std::wstring&& text, std::vector<ResultPoint>&& resultPoints, BarcodeFormat format, ByteArray&& rawBytes = {});
+
+	// 1D convenience constructor
+	Result(const std::string& text, int y, int xStart, int xStop, BarcodeFormat format, ByteArray&& rawBytes = {});
 
 	Result(DecoderResult&& decodeResult, std::vector<ResultPoint>&& resultPoints, BarcodeFormat format);
 
 	bool isValid() const {
-		return StatusIsOK(_status) || isBlurry();
+		return StatusIsOK(_status);
+	}
+
+	bool isNeedScale() const {
+		return status() == DecodeStatus::PositionFound;
 	}
 
 	bool isBlurry() const {
-		return resultPoints().size() > 2;
+		return resultPoints().size() >= 2;
 	}
 
 	DecodeStatus status() const {
@@ -66,7 +73,7 @@ public:
 	const ByteArray& rawBytes() const {
 		return _rawBytes;
 	}
-	
+
 	int numBits() const {
 		return _numBits;
 	}
